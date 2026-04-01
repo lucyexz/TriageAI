@@ -1,0 +1,359 @@
+version: "3.9"
+
+# PROJETO: Triagem Automatizada com IA
+# RESPONSÁVEL: Pedro / Leonardo (MLOps / Infra)
+# SERVIÇOS: MinIO, PostgreSQL, MLflow, Milvus, Ollama, Airflow, Jupyter, Prometheus, Grafana
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.1
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - mlops-net
+
+# NETWORKS
+networks:
+  mlops-net:
+    driver: bridge
+
+# VOLUMES PERSISTENTES
+volumes:
+  postgres_data:
+  minio_data:
+  mlflow_artifacts:
+  milvus_data:
+  etcd_data:
+  minio_milvus_data:
+  ollama_data:
+  grafana_data:
+  prometheus_data:
+  jupyter_data:
+
+# SERVIÇOS
+services:
+  # PostgreSQL — banco principal e backend do MLflow / Airflow
+  postgres:
+    image: postgres:15-alpine
+    container_name: mlops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: mlops
+      POSTGRES_MULTIPLE_DATABASES: mlflow,airflow   # init script cria múltiplos DBs
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d mlops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlops-net
+
+  # MINIO — object storage (camadas Bronze/Silver/Gold + artefatos MLflow)
+  minio:
+    image: minio/minio:latest
+    container_name: mlops-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mlops-net
+
+  # Cria os buckets automaticamente na primeira inicializacao
+  minio-init:
+    image: minio/mc:latest
+    container_name: mlops-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin123;
+        mc mb --ignore-existing local/bronze;
+        mc mb --ignore-existing local/silver;
+        mc mb --ignore-existing local/gold;
+        mc mb --ignore-existing local/mlflow-artifacts;
+        mc mb --ignore-existing local/milvus-backup;
+        echo '✅ Buckets criados com sucesso';
+      "
+    networks:
+      - mlops-net
+
+  # MLFLOW — tracking de experimentos de ML
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: mlops-mlflow
+    restart: unless-stopped
+    command: >
+      mlflow server
+        --backend-store-uri postgresql://admin:admin123@postgres:5432/mlflow
+        --default-artifact-root s3://mlflow-artifacts/
+        --host 0.0.0.0
+        --port 5000
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mlops-net
+
+  # ETCD — metadados do Milvus (obrigatório)
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: mlops-etcd
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: >
+      etcd
+        -advertise-client-urls=http://127.0.0.1:2379
+        -listen-client-urls=http://0.0.0.0:2379
+        --data-dir=/etcd
+    volumes:
+      - etcd_data:/etcd
+    networks:
+      - mlops-net
+
+  # MinIO separado para Milvus (isolamento)
+  minio-milvus:
+    image: minio/minio:latest
+    container_name: mlops-minio-milvus
+    restart: unless-stopped
+    command: minio server /minio_data --console-address ":9011"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_milvus_data:/minio_data
+    ports:
+      - "9010:9000"
+      - "9011:9011"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - mlops-net
+
+  # MILVUS — banco de vetores para embeddings
+  milvus:
+    image: milvusdb/milvus:v2.4.5
+    container_name: mlops-milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio-milvus:9000
+      MINIO_ACCESS_KEY_ID: minioadmin
+      MINIO_SECRET_ACCESS_KEY: minioadmin123
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"  # gRPC API
+      - "9091:9091"    # HTTP API / métricas
+    depends_on:
+      - etcd
+      - minio-milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+    networks:
+      - mlops-net
+
+  # OLLAMA — LLM local para geração de embeddings
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mlops-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mlops-net
+
+  # Faz pull do modelo na primeira inicialização
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: mlops-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        ollama pull nomic-embed-text;
+        echo 'Modelo de incorporacao baixado';
+      "
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      - mlops-net
+
+  # AIRFLOW — orquestração de pipelines
+  airflow-init:
+    <<: *airflow-common
+    container_name: mlops-airflow-init
+    command: >
+      bash -c "
+        airflow db init &&
+        airflow users create --username admin --password admin123
+          --firstname Admin --lastname User --role Admin
+          --email admin@mlops.local
+      "
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: mlops-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: mlops-airflow-scheduler
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # JUPYTER — ambiente de notebooks
+  jupyter:
+    image: jupyter/scipy-notebook:latest
+    container_name: mlops-jupyter
+    restart: unless-stopped
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      JUPYTER_TOKEN: "mlops2025"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+    volumes:
+      - jupyter_data:/home/jovyan/work
+      - ./notebooks:/home/jovyan/work/notebooks
+    ports:
+      - "8888:8888"
+    depends_on:
+      - mlflow
+      - minio
+    networks:
+      - mlops-net
+
+  # PROMETHEUS — coleta de métricas dos serviços
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mlops-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=7d"
+    ports:
+      - "9090:9090"
+    networks:
+      - mlops-net
+
+  # GRAFANA — dashboards de observabilidade
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mlops-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - mlops-net
+
+  # REDIS — cache e broker
+  redis:
+    image: redis:7-alpine
+    container_name: mlops-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mlops-net
