@@ -63,12 +63,78 @@ O projeto segue metodologia ágil baseada em:
 
 ## 🚀 Como Executar
 
+---
+
+### 🎨 Front-end
 ```bash
-# subir ambiente
-docker-compose up -d
-
-# acessar API
-http://localhost:8000
-
 # acessar interface
 http://localhost:7860
+```
+
+---
+
+### 💻 Backend
+```bash
+# acessar API
+http://localhost:8000
+```
+
+---
+
+### 🧠 AI / RAG
+```bash
+# MLflow — acompanhar experimentos
+http://localhost:5000
+
+# Ollama — API de embeddings
+http://localhost:11434
+
+# Milvus — banco de vetores
+localhost:19530
+
+# Jupyter — notebooks de treino
+http://localhost:8888  # token: mlops2025
+```
+
+---
+
+### 📊 Data Engineering
+```bash
+# Airflow — pipelines de dados
+http://localhost:8080  # admin / admin123
+
+# MinIO — camadas bronze, silver e gold
+http://localhost:9001  # minioadmin / minioadmin123
+```
+
+---
+
+### 🚀 MLOps / Infra
+```bash
+# configurar variáveis de ambiente
+cp .env.example .env
+
+# dar permissão aos scripts
+chmod +x init-scripts/postgres/01-create-databases.sh
+chmod +x infra/minio/buckets.sh
+
+# subir todo o ambiente
+make up
+
+# derrubar o ambiente
+make down
+
+# ver logs de um serviço específico
+make logs s=mlflow
+
+# verificar se os serviços estão respondendo
+make health
+```
+
+# ver logs de um serviço específico
+make logs s=mlflow
+
+# verificar se os serviços estão respondendo
+make health
+```
+---
