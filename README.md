@@ -72,3 +72,55 @@ http://localhost:8000
 
 # acessar interface
 http://localhost:7860
+
+## 🛠️ Infra — Como Subir o Ambiente
+
+> Essa seção é mantida pelo time de MLOps/Infra.
+> Os outros times não precisam mexer nesses arquivos.
+
+### Pré-requisitos
+- [Docker](https://www.docker.com/) instalado
+- [Git](https://git-scm.com/) instalado
+
+### 1. Configure as variáveis de ambiente
+```bash
+cp .env.example .env
+```
+
+### 2. Dê permissão aos scripts
+```bash
+chmod +x init-scripts/postgres/01-create-databases.sh
+chmod +x infra/minio/buckets.sh
+```
+
+### 3. Suba o ambiente
+```bash
+make up
+```
+
+### 4. Serviços disponíveis
+
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| MinIO Console | http://localhost:9001 | minioadmin / minioadmin123 |
+| MLflow | http://localhost:5000 | — |
+| Airflow | http://localhost:8080 | admin / admin123 |
+| Jupyter Lab | http://localhost:8888 | token: mlops2025 |
+| Grafana | http://localhost:3000 | admin / admin123 |
+| Prometheus | http://localhost:9090 | — |
+| Milvus gRPC | localhost:19530 | — |
+| Ollama | http://localhost:11434 | — |
+| PostgreSQL | localhost:5432 | admin / admin123 |
+
+### 5. Outros comandos úteis
+```bash
+# derrubar o ambiente
+make down
+
+# ver logs de um serviço específico
+make logs s=mlflow
+
+# verificar se os serviços estão respondendo
+make health
+```
+---
