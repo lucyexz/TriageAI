@@ -18,14 +18,16 @@ O projeto tem como objetivo desenvolver um assistente capaz de:
 
 ## 🧠 Tecnologias Utilizadas
 
-- **LLM Local:** Ollama  
-- **API:** FastAPI 
-- **Vector Database:** Milvus  
-- **Banco Relacional:** PostgreSQL  
-- **Data Lake:** MinIO  
-- **MLOps:** MLflow  
-- **Interface:** Gradio  
-- **Containerização:** Docker Compose  
+- **LLM Local:** Ollama
+- **API:** FastAPI
+- **Vector Database:** Milvus
+- **Banco Relacional:** PostgreSQL
+- **Data Lake:** MinIO
+- **MLOps:** MLflow
+- **Interface:** Gradio
+- **Containerização:** Docker Compose
+
+---
 
 ## 📊 Metodologia
 
@@ -63,23 +65,17 @@ O projeto segue metodologia ágil baseada em:
 
 ## 🚀 Como Executar
 
----
-
 ### 🎨 Front-end
 ```bash
 # acessar interface
 http://localhost:7860
 ```
 
----
-
 ### 💻 Backend
 ```bash
 # acessar API
 http://localhost:8000
 ```
-
----
 
 ### 🧠 AI / RAG
 ```bash
@@ -96,8 +92,6 @@ localhost:19530
 http://localhost:8888  # token: mlops2025
 ```
 
----
-
 ### 📊 Data Engineering
 ```bash
 # Airflow — pipelines de dados
@@ -106,8 +100,6 @@ http://localhost:8080  # admin / admin123
 # MinIO — camadas bronze, silver e gold
 http://localhost:9001  # minioadmin / minioadmin123
 ```
-
----
 
 ### 🚀 MLOps / Infra
 ```bash
@@ -129,15 +121,4 @@ make logs s=mlflow
 
 # verificar se os serviços estão respondendo
 make health
-
-# listar serviços
-make ls
 ```
-
-# ver logs de um serviço específico
-make logs s=mlflow
-
-# verificar se os serviços estão respondendo
-make health
-```
----
