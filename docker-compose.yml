@@ -1,5 +1,3 @@
-version: "3.9"
-
 # PROJETO: Triagem Automatizada com IA
 # RESPONSÁVEL: Pedro / Leonardo (MLOps / Infra)
 # SERVIÇOS: MinIO, PostgreSQL, MLflow, Milvus, Ollama, Airflow, Jupyter, Prometheus, Grafana
