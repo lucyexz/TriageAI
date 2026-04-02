@@ -129,6 +129,9 @@ make logs s=mlflow
 
 # verificar se os serviços estão respondendo
 make health
+
+# listar serviços
+make ls
 ```
 
 # ver logs de um serviço específico
