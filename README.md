@@ -103,6 +103,9 @@ http://localhost:9001  # minioadmin / minioadmin123
 
 ### 🚀 MLOps / Infra
 ```bash
+# Instalar make no ambiente
+choco install make -y
+
 # configurar variáveis de ambiente
 cp .env.example .env
 
