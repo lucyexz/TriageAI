@@ -33,4 +33,4 @@ echo "   mlflow-artifacts  → modelos e artefatos do MLflow"
 echo "   milvus-backup     → backup dos índices vetoriais"
 echo ""
 
-mc ls local
+mc ls local 

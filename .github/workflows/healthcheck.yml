@@ -32,7 +32,7 @@ jobs:
           test -f init-scripts/postgres/01-create-databases.sh && echo "✅ init postgres"        || exit 1
           test -f infra/minio/buckets.sh                      && echo "✅ buckets.sh"            || exit 1
           test -f airflow/dags/dag_training.py                && echo "✅ dag_training.py"       || exit 1
-          test -f notebooks/mlflow_example.ipynb              && echo "✅ mlflow_example.ipynb"  || exit 1
+          test -f notebooks/mlflow_guide.ipynb              && echo "✅ mlflow_example.ipynb"  || exit 1
 
           echo ""
           echo "tudo certo, infra completa"
