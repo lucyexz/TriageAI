@@ -1,0 +1,38 @@
+name: verificar estrutura de infra
+
+# roda sempre que alguém fizer push no branch de infra ou abrir PR pra main
+on:
+  push:
+    branches:
+      - mlops_infra
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: clona o repositório
+        uses: actions/checkout@v3
+
+      - name: valida a sintaxe do docker-compose
+        run: docker compose config
+
+      - name: verifica se todos os arquivos de infra estão presentes
+        run: |
+          echo "🔍 verificando arquivos obrigatórios..."
+
+          test -f docker-compose.yml                          && echo "✅ docker-compose.yml"     || exit 1
+          test -f Makefile                                    && echo "✅ Makefile"               || exit 1
+          test -f .env.example                                && echo "✅ .env.example"           || exit 1
+          test -f monitoring/prometheus.yml                   && echo "✅ prometheus.yml"         || exit 1
+          test -f init-scripts/postgres/01-create-databases.sh && echo "✅ init postgres"        || exit 1
+          test -f infra/minio/buckets.sh                      && echo "✅ buckets.sh"            || exit 1
+          test -f airflow/dags/dag_training.py                && echo "✅ dag_training.py"       || exit 1
+          test -f notebooks/mlflow_guide.ipynb              && echo "✅ mlflow_example.ipynb"  || exit 1
+
+          echo ""
+          echo "tudo certo, infra completa"
