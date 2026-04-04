@@ -1,12 +1,12 @@
 # Makefile — Projeto Triagem com IA (MLOps/Infra)
 # Uso: make <comando>
 
-.PHONY: up down restart logs ps clean pull help
+.PHONY: up down restart logs ps clean pull help reset build up-infra shell health
 
 ## Informacoes de todos os serviços
 up:
 	@echo "Subindo o ambiente MLOps..."
-	docker compose up -d
+	docker compose up -d --build
 	@echo ""
 	@echo "Ambiente disponível em:"
 	@echo "   MinIO Console  → http://localhost:9001  (minioadmin / minioadmin123)"
@@ -20,8 +20,11 @@ up:
 	@echo "   PostgreSQL     → localhost:5432 (admin / admin123)"
 
 ## Sobe somente a infra base (sem Airflow e Jupyter)
+build:
+	docker compose build --no-cache
+
 up-infra:
-	docker compose up -d postgres minio minio-init mlflow etcd minio-milvus milvus redis
+	docker compose up -d --build postgres minio minio-init mlflow etcd minio-milvus milvus redis
 
 down:
 	docker compose down
@@ -31,11 +34,16 @@ clean:
 	@echo "⚠️  Isso vai apagar TODOS os dados. Tem certeza? [y/N]"
 	@read ans; [ $${ans:-N} = y ] && docker compose down -v || echo "Operação cancelada."
 
+reset:
+	docker compose down -v
+	docker compose up -d --build
+
 ## Reinicia um serviço específico
 restart:
 	docker compose restart $(s)
 
 ## Mostra logs de todos os serviços
+logs:
 	docker compose logs -f $(s)
 
 ## listagem de status de todos os containers
@@ -56,4 +64,4 @@ health:
 	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 help:
-	@grep -E '^## ' Makefile | sed 's/## //'
+	@grep -E '^[a-zA-Z_-]+:|^## ' Makefile

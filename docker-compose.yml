@@ -6,7 +6,7 @@ x-airflow-common: &airflow-common
   image: apache/airflow:2.9.1
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:admin123@postgres:5432/airflow
     AIRFLOW__CORE__FERNET_KEY: ""
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -43,7 +43,9 @@ volumes:
 services:
   # PostgreSQL — banco principal e backend do MLflow / Airflow
   postgres:
-    image: postgres:15-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mlops-postgres
     restart: unless-stopped
     environment:
@@ -53,14 +55,13 @@ services:
       POSTGRES_MULTIPLE_DATABASES: mlflow,airflow   # init script cria múltiplos DBs
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d mlops"]
+      test: [ "CMD-SHELL", "pg_isready -U admin -d postgres" ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - mlops-net
 
@@ -79,7 +80,7 @@ services:
       - "9000:9000"   # API S3
       - "9001:9001"   # Console web
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -108,7 +109,9 @@ services:
 
   # MLFLOW — tracking de experimentos de ML
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.13.0
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
     container_name: mlops-mlflow
     restart: unless-stopped
     command: >
@@ -129,10 +132,11 @@ services:
       minio-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" ]
       interval: 20s
       timeout: 10s
       retries: 5
+      start_period: 20s
     networks:
       - mlops-net
 
@@ -171,10 +175,11 @@ services:
       - "9010:9000"
       - "9011:9011"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:9000/minio/health/live || exit 1" ]
       interval: 30s
       timeout: 20s
       retries: 3
+      start_period: 20s
     networks:
       - mlops-net
 
@@ -183,7 +188,7 @@ services:
     image: milvusdb/milvus:v2.4.5
     container_name: mlops-milvus
     restart: unless-stopped
-    command: ["milvus", "run", "standalone"]
+    command: [ "milvus", "run", "standalone" ]
     security_opt:
       - seccomp:unconfined
     environment:
@@ -200,10 +205,11 @@ services:
       - etcd
       - minio-milvus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:9091/healthz || exit 1" ]
       interval: 30s
       timeout: 20s
       retries: 5
+      start_period: 30s
     networks:
       - mlops-net
 
@@ -217,10 +223,11 @@ services:
     ports:
       - "11434:11434"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      test: [ "CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1" ]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 8
+      start_period: 60s
     networks:
       - mlops-net
 
@@ -233,7 +240,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        ollama pull nomic-embed-text;
+        ollama pull nomic-embed-text &&
         echo 'Modelo de incorporacao baixado';
       "
     environment:
@@ -247,10 +254,14 @@ services:
     container_name: mlops-airflow-init
     command: >
       bash -c "
-        airflow db init &&
-        airflow users create --username admin --password admin123
-          --firstname Admin --lastname User --role Admin
-          --email admin@mlops.local
+        airflow db migrate &&
+        airflow users create
+          --username admin
+          --password admin123
+          --firstname Admin
+          --lastname User
+          --role Admin
+          --email admin@mlops.local || true
       "
     restart: "no"
 
@@ -264,10 +275,11 @@ services:
       airflow-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" ]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   airflow-scheduler:
@@ -349,7 +361,7 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
