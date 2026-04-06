@@ -13,3 +13,9 @@ airflow/logs/
 # Docker
 *.log
 EOF
+
+# Medallion
+data/bronze/*.csv
+data/silver/*.csv
+data/gold/*.csv
+!data/*/.gitkeep
