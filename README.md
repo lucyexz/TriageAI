@@ -57,6 +57,10 @@ O projeto segue metodologia ágil baseada em:
 
 ---
 
+## dataset: https://www.kaggle.com/datasets/dhivyeshrk/diseases-and-symptoms-dataset
+
+---
+
 ## 👑 Product Owner
 
 **Ana Lucia de Souza**
