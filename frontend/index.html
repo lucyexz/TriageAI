@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriageAI - Assistente de Triagem Hospitalar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f0f4f1;
+            color: #1a1a1a;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: #00843D;
+            padding: 0 28px;
+            height: 58px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+        }
+        .header-brand {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.2px;
+        }
+        .header-divider {
+            width: 1px;
+            height: 18px;
+            background: rgba(255,255,255,0.35);
+        }
+        .header-sub {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.88);
+            font-weight: 400;
+        }
+
+        /* Main layout */
+        .main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 28px 24px;
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* Cards */
+        .card {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        .card-header {
+            padding: 14px 16px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .card-title {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+        }
+
+        /* Clinical cases sidebar */
+        .cases-list {
+            padding: 8px;
+        }
+        .case-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 9px 12px 9px 14px;
+            border: none;
+            border-left: 3px solid transparent;
+            border-radius: 6px;
+            background: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            transition: background 0.12s, color 0.12s, border-left-color 0.12s;
+            line-height: 1.4;
+        }
+        .case-btn:hover {
+            background: #f0faf5;
+            color: #00843D;
+            border-left-color: #00843D;
+        }
+        .case-btn.active {
+            background: #ebf7f0;
+            color: #00843D;
+            border-left-color: #00843D;
+            font-weight: 600;
+        }
+
+        /* Analysis panel */
+        .analysis-card {
+            padding: 24px;
+        }
+
+        .field-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 11px 13px;
+            border: 1.5px solid #d1d5db;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: #1a1a1a;
+            resize: vertical;
+            min-height: 96px;
+            outline: none;
+            transition: border-color 0.15s;
+            line-height: 1.55;
+            background: #fafafa;
+        }
+        textarea:focus {
+            border-color: #00843D;
+            background: #fff;
+        }
+        textarea::placeholder {
+            color: #b0b8c1;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .btn-primary {
+            flex: 2;
+            padding: 10px 20px;
+            background: #00843D;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+            letter-spacing: 0.01em;
+        }
+        .btn-primary:hover:not(:disabled) { background: #006B32; }
+        .btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            flex: 1;
+            padding: 10px 16px;
+            background: none;
+            color: #6b7280;
+            border: 1.5px solid #d1d5db;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .btn-secondary:hover {
+            border-color: #9ca3af;
+            color: #374151;
+        }
+
+        /* Output area */
+        .output-section {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .output-label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            margin-bottom: 12px;
+        }
+        .output-content {
+            min-height: 60px;
+            font-size: 0.9rem;
+            line-height: 1.65;
+            color: #374151;
+        }
+        .output-placeholder {
+            color: #9ca3af;
+            font-style: italic;
+            font-size: 0.875rem;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #e5e7eb;
+            border-top-color: #00843D;
+            border-radius: 50%;
+            animation: spin 0.65s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Markdown output */
+        .markdown h1, .markdown h2, .markdown h3 {
+            color: #00843D;
+            font-weight: 600;
+            margin: 1em 0 0.35em;
+        }
+        .markdown h1 { font-size: 1.1rem; }
+        .markdown h2 { font-size: 1rem; }
+        .markdown h3 { font-size: 0.925rem; }
+        .markdown p { margin: 0.45em 0; }
+        .markdown ul, .markdown ol {
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+        }
+        .markdown li { margin: 0.2em 0; }
+        .markdown strong { color: #111; font-weight: 600; }
+        .markdown em { color: #374151; }
+        .markdown hr {
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: 1.1em 0;
+        }
+        .markdown code {
+            background: #f3f4f6;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #374151;
+        }
+        .markdown > *:first-child { margin-top: 0; }
+
+        /* Error */
+        .error-msg {
+            color: #b91c1c;
+            font-size: 0.875rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 10px 14px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 700px) {
+            .main {
+                grid-template-columns: 1fr;
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <span class="header-brand">TriageAI</span>
+        <div class="header-divider"></div>
+        <span class="header-sub">Assistente de Triagem Hospitalar</span>
+    </header>
+
+    <main class="main">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Casos Clinicos</div>
+            </div>
+            <div class="cases-list" id="casesList">
+                <button class="case-btn" data-symptoms="febre alta, dor de cabeça intensa e rigidez na nuca">Síndrome Meníngea</button>
+                <button class="case-btn" data-symptoms="dor no peito, falta de ar e sudorese fria">Emergência Cardíaca</button>
+                <button class="case-btn" data-symptoms="tosse seca persistente, febre leve e perda de olfato">Síndrome Gripal</button>
+                <button class="case-btn" data-symptoms="dor abdominal intensa localizada, náusea e vômito">Abdômen Agudo</button>
+                <button class="case-btn" data-symptoms="fraqueza súbita no lado esquerdo do corpo e dificuldade para falar">AVC Suspeito</button>
+            </div>
+        </div>
+
+        <div class="card analysis-card">
+            <div class="field-label">Sintomas do Paciente</div>
+            <textarea id="symptomsInput" placeholder="Descreva os sintomas..." rows="4"></textarea>
+            <div class="btn-row">
+                <button class="btn-primary" id="analyzeBtn">Analisar</button>
+                <button class="btn-secondary" id="clearBtn">Limpar</button>
+            </div>
+
+            <div class="output-section">
+                <div class="output-label">Análise de Triagem</div>
+                <div class="output-content" id="outputContent">
+                    <span class="output-placeholder">A análise será exibida aqui após o envio dos sintomas.</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // API calls go to /query on the same origin (server.py proxies to the backend)
+        const symptomsInput = document.getElementById('symptomsInput');
+        const outputContent = document.getElementById('outputContent');
+        const analyzeBtn  = document.getElementById('analyzeBtn');
+        const clearBtn    = document.getElementById('clearBtn');
+        const caseBtns    = document.querySelectorAll('.case-btn');
+
+        caseBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                caseBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                symptomsInput.value = btn.dataset.symptoms;
+                analyze();
+            });
+        });
+
+        analyzeBtn.addEventListener('click', analyze);
+
+        clearBtn.addEventListener('click', () => {
+            caseBtns.forEach(b => b.classList.remove('active'));
+            symptomsInput.value = '';
+            outputContent.innerHTML = '<span class="output-placeholder">A análise será exibida aqui após o envio dos sintomas.</span>';
+        });
+
+        async function analyze() {
+            const symptoms = symptomsInput.value.trim();
+            if (!symptoms) return;
+
+            analyzeBtn.disabled = true;
+            outputContent.innerHTML = '<div class="loading"><div class="spinner"></div>Analisando sintomas...</div>';
+
+            try {
+                const res = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symptoms })
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                outputContent.innerHTML = '<div class="markdown">' + marked.parse(data.response) + '</div>';
+            } catch (err) {
+                outputContent.innerHTML = '<div class="error-msg">Erro de conexão: ' + err.message + '. Verifique se os serviços estão em execução.</div>';
+            } finally {
+                analyzeBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

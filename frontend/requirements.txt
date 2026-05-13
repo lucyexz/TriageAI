@@ -1,2 +1,1 @@
-gradio>=4.0
-requests>=2.31
+# no runtime dependencies — server.py uses stdlib only
