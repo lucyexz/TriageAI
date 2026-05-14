@@ -24,7 +24,7 @@ O projeto tem como objetivo desenvolver um assistente capaz de:
 - **Banco Relacional:** PostgreSQL
 - **Data Lake:** MinIO
 - **MLOps:** MLflow
-- **Interface:** Gradio
+- **Interface:** HTML/CSS/JS
 - **Containerização:** Docker Compose
 
 ---
@@ -65,6 +65,19 @@ O projeto segue metodologia ágil baseada em:
 
 ## 🚀 Como Executar
 
+### ⚙️ Setup Inicial (primeira vez)
+```bash
+# pré-requisitos: Docker e Docker Compose instalados
+
+cp .env.example .env
+
+chmod +x init-scripts/postgres/01-create-databases.sh
+chmod +x infra/minio/buckets.sh
+
+make up       # sobe todos os 14 serviços (~2 min na primeira vez)
+make health   # confirma que todos respondem
+```
+
 ### 🎨 Front-end
 ```bash
 # acessar interface
@@ -103,22 +116,21 @@ http://localhost:9001  # minioadmin / minioadmin123
 
 ### 🚀 MLOps / Infra
 ```bash
-# configurar variáveis de ambiente
-cp .env.example .env
-
-# dar permissão aos scripts
-chmod +x init-scripts/postgres/01-create-databases.sh
-chmod +x infra/minio/buckets.sh
-
-# subir todo o ambiente
-make up
-
 # derrubar o ambiente
 make down
+
+# rebuild das imagens sem cache
+make build
+
+# restart limpo (destrói volumes)
+make reset
 
 # ver logs de um serviço específico
 make logs s=mlflow
 
 # verificar se os serviços estão respondendo
 make health
+
+# shell em um container
+make shell s=api
 ```
