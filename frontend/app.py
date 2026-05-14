@@ -1,3 +1,6 @@
+# LEGADO — Interface Gradio não utilizada pelo Dockerfile atual.
+# O frontend em produção é frontend/server.py + frontend/index.html (porta 7860).
+# Este arquivo é mantido apenas para referência histórica.
 import os
 import requests
 import gradio as gr
