@@ -22,4 +22,4 @@ data/gold/*.csv
 data/ingestion/datasets/
 
 # Claude
-CLAUDE.md
+# CLAUDE.md is tracked intentionally — it provides AI assistant context for all contributors
