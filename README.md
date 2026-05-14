@@ -98,7 +98,7 @@ http://localhost:7860
 ```bash
 # acessar API
 http://localhost:8000
-
+```
 
 ### 🧠 AI / RAG
 ```bash
