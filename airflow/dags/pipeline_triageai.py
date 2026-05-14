@@ -76,41 +76,30 @@ def processamento_gold():
     print(f"Camada Gold atualizada: {path_gold}")
 
 def atualizacao_milvus():
-    from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility
-    from ollama import Client
-    
+    from embeddings.generate import get_client, generate_embeddings
+    from embeddings.indexing import connect, reset_collection, insert_batch, create_index_and_load
+
     print("Iniciando geração de embeddings e indexação no Milvus...")
     df_gold = pd.read_csv("s3://gold/textos_rag.csv", storage_options=MINIO_OPTIONS)
-    
-    connections.connect("default", host="milvus", port="19530")
-    ollama_client = Client(host='http://ollama:11434')
-    
-    collection_name = "triageai_knowledge_base"
-    if utility.has_collection(collection_name):
-        utility.drop_collection(collection_name)
-        
-    fields = [
-        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-        FieldSchema(name="disease", dtype=DataType.VARCHAR, max_length=200),
-        FieldSchema(name="texto_rag", dtype=DataType.VARCHAR, max_length=2500),
-        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=768)
-    ]
-    schema = CollectionSchema(fields, description="Base RAG TriageAI")
-    collection = Collection(name=collection_name, schema=schema)
-    
-    doencas = df_gold['diseases'].tolist()
-    textos = df_gold['texto'].tolist()
-    embeddings = []
-    
-    for texto in textos:
-        response = ollama_client.embeddings(model='nomic-embed-text', prompt=texto)
-        embeddings.append(response['embedding'])
-        
-    collection.insert([doencas, textos, embeddings])
-    
-    index_params = {"metric_type": "COSINE", "index_type": "HNSW", "params": {"M": 8, "efConstruction": 64}}
-    collection.create_index(field_name="embedding", index_params=index_params)
-    collection.load()
+
+    connect()
+    collection = reset_collection()
+    ollama_client = get_client()
+
+    BATCH_SIZE = 500
+    total = len(df_gold)
+    for i in range(0, total, BATCH_SIZE):
+        batch = df_gold.iloc[i : i + BATCH_SIZE]
+        embeddings = generate_embeddings(batch["texto"].tolist(), ollama_client)
+        insert_batch(
+            collection,
+            batch["diseases"].tolist(),
+            batch["texto"].tolist(),
+            embeddings,
+        )
+        print(f"[Milvus] Batch {i // BATCH_SIZE + 1}: {min(i + BATCH_SIZE, total)}/{total} registros inseridos")
+
+    create_index_and_load(collection)
     print("Indexação vetorial concluída com sucesso!")
 
 # ==========================================
