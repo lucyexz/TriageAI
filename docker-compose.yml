@@ -295,7 +295,9 @@ services:
 
   # JUPYTER — ambiente de notebooks
   jupyter:
-    image: jupyter/scipy-notebook:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
     container_name: mlops-jupyter
     restart: unless-stopped
     environment:

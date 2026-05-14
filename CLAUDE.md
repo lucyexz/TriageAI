@@ -113,7 +113,7 @@ make shell s=api
 python -c "
 from pymilvus import Collection, connections
 connections.connect(host='milvus', port=19530)
-c = Collection('triage_rag')
+c = Collection('triageai_knowledge_base')
 print('indexed docs:', c.num_entities)
 "
 ```

@@ -1,0 +1,73 @@
+flowchart TB
+    U(["Usuário\nNavegador"])
+
+    subgraph fe ["Frontend · :7860"]
+        FE["index.html\nHTML / CSS / JS"]
+        PR["server.py\nProxy Python"]
+    end
+
+    subgraph api ["API FastAPI · :8000"]
+        EP["/query  /health  /metadata"]
+        RAG["RAG Engine\nrag/query.py"]
+    end
+
+    subgraph ollama ["Ollama · :11434"]
+        EMB["nomic-embed-text\n768 dimensões"]
+        LLM["llama3.2\nLLM local"]
+    end
+
+    subgraph milvus ["Milvus · :19530"]
+        VDB[("Índice HNSW\nCOSINE\n~493 k entidades")]
+    end
+
+    subgraph airflow_pipe ["Pipeline Airflow · :8080"]
+        direction LR
+        DAG["DAG: triageai_medallion_pipeline\nagendamento @weekly"]
+        B["Bronze\nCSV bruto Kaggle"]
+        S["Silver\nnormalizado"]
+        G["Gold\ntexto RAG"]
+        DAG --> B --> S --> G
+    end
+
+    subgraph minio_store ["MinIO · :9000"]
+        direction LR
+        MB[("bronze/")]
+        MS[("silver/")]
+        MG[("gold/")]
+        MA[("mlflow-artifacts/")]
+    end
+
+    subgraph suporte ["Serviços de Suporte"]
+        direction LR
+        MLFLOW["MLflow · :5000"]
+        PG[("PostgreSQL · :5432\nmlops | mlflow | airflow")]
+        REDIS[("Redis · :6379\nbroker Airflow")]
+        PROM["Prometheus · :9090"]
+        GRAF["Grafana · :3000"]
+    end
+
+    %% Fluxo de consulta RAG
+    U -->|sintomas| FE
+    FE <--> PR
+    PR -->|"POST /query"| EP
+    EP --> RAG
+    RAG -->|"1 traduz PT→EN"| LLM
+    RAG -->|"2 embed query"| EMB
+    EMB -->|"vetor 768d"| VDB
+    VDB -->|"top-5 docs"| RAG
+    RAG -->|"3 prompt + contexto"| LLM
+    LLM -->|"resposta pt-BR"| RAG
+    RAG --> EP --> PR --> FE --> U
+
+    %% Pipeline de ingestão
+    G -->|"textos RAG"| EMB
+    B -.->|"persiste"| MB
+    S -.->|"persiste"| MS
+    G -.->|"persiste"| MG
+
+    %% MLflow & suporte
+    MLFLOW --> PG
+    MLFLOW --> MA
+    PROM -.->|"scrape métricas"| api
+    PROM --> GRAF
+    airflow_pipe -.->|"usa broker"| REDIS
