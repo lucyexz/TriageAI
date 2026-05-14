@@ -16,6 +16,16 @@ O projeto tem como objetivo desenvolver um assistente capaz de:
 
 ---
 
+## 🎲 Dataset
+
+```bash
+🔗 https://www.kaggle.com/datasets/karthikudyawar/disease-symptom-prediction
+```
+
+O dataset Disease Symptom Prediction reúne dados de sintomas associados a diferentes doenças, com o objetivo de treinar modelos de Machine Learning capazes de prever uma possível enfermidade a partir dos sintomas informados pelo usuário. Ele é adequado para projetos de triagem inicial, como o TriageAI, pois permite transformar sintomas em variáveis de entrada e gerar uma classificação provável da condição do paciente. Em bases semelhantes desse mesmo conjunto de dados, os sintomas aparecem como atributos binários ou categóricos, e a doença prevista é representada pela coluna-alvo, geralmente chamada de prognosis. Alguns conjuntos relacionados possuem cerca de 132 sintomas e 42 classes de doenças, divididos em arquivos de treino e teste.
+
+---
+
 ## 🧠 Tecnologias Utilizadas
 
 - **LLM Local:** Ollama
@@ -88,7 +98,8 @@ http://localhost:7860
 ```bash
 # acessar API
 http://localhost:8000
-```
+```<img width="4763" height="2133" alt="mermaid-diagram (1)" src="https://github.com/user-attachments/assets/cdd34574-4f96-43c1-a7e7-555fcf181a7b" />
+
 
 ### 🧠 AI / RAG
 ```bash
