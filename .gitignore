@@ -20,3 +20,6 @@ data/silver/*.csv
 data/gold/*.csv
 !data/*/.gitkeep
 data/ingestion/datasets/
+
+# Claude
+# CLAUDE.md is tracked intentionally — it provides AI assistant context for all contributors

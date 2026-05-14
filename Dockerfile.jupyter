@@ -1,0 +1,9 @@
+FROM jupyter/scipy-notebook:latest
+
+# Instala dependências do projeto com versões fixas
+# mlflow pinado para coincidir com o servidor (mlflow:5000 roda 2.13.0)
+RUN pip install --no-cache-dir \
+    "mlflow==2.13.0" \
+    "s3fs" \
+    "boto3" \
+    "xgboost"
