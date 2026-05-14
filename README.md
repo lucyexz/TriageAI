@@ -16,16 +16,13 @@ O projeto tem como objetivo desenvolver um assistente capaz de:
 
 ---
 
-## 🧠 Tecnologias Utilizadas
+---
 
-- **LLM Local:** Ollama
-- **API:** FastAPI
-- **Vector Database:** Milvus
-- **Banco Relacional:** PostgreSQL
-- **Data Lake:** MinIO
-- **MLOps:** MLflow
-- **Interface:** Gradio
-- **Containerização:** Docker Compose
+## 🎲 Dataset
+
+## 🔗 https://www.kaggle.com/datasets/karthikudyawar/disease-symptom-prediction
+
+O dataset Disease Symptom Prediction reúne dados de sintomas associados a diferentes doenças, com o objetivo de treinar modelos de Machine Learning capazes de prever uma possível enfermidade a partir dos sintomas informados pelo usuário. Ele é adequado para projetos de triagem inicial, como o TriageAI, pois permite transformar sintomas em variáveis de entrada e gerar uma classificação provável da condição do paciente. Em bases semelhantes desse mesmo conjunto de dados, os sintomas aparecem como atributos binários ou categóricos, e a doença prevista é representada pela coluna-alvo, geralmente chamada de prognosis. Alguns conjuntos relacionados possuem cerca de 132 sintomas e 42 classes de doenças, divididos em arquivos de treino e teste.
 
 ---
 
