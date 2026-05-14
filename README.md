@@ -98,7 +98,6 @@ http://localhost:7860
 ```bash
 # acessar API
 http://localhost:8000
-```<img width="4763" height="2133" alt="mermaid-diagram (1)" src="https://github.com/user-attachments/assets/cdd34574-4f96-43c1-a7e7-555fcf181a7b" />
 
 
 ### 🧠 AI / RAG
