@@ -1,3 +1,5 @@
+import hashlib
+
 from pymilvus import (
     connections,
     FieldSchema,
@@ -17,22 +19,84 @@ def connect(host: str = MILVUS_HOST, port: str = MILVUS_PORT) -> None:
     print(f"[Milvus] Conectado em {host}:{port}")
 
 
-def reset_collection() -> Collection:
-    """Remove a coleção existente e cria uma nova com o schema correto."""
-    if utility.has_collection(COLLECTION_NAME):
-        utility.drop_collection(COLLECTION_NAME)
-        print(f"[Milvus] Coleção '{COLLECTION_NAME}' removida.")
-
+def _make_schema() -> CollectionSchema:
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+        FieldSchema(name="doc_hash", dtype=DataType.VARCHAR, max_length=64),
         FieldSchema(name="disease", dtype=DataType.VARCHAR, max_length=200),
         FieldSchema(name="texto_rag", dtype=DataType.VARCHAR, max_length=2500),
         FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=768),
     ]
-    schema = CollectionSchema(fields, description="Base RAG TriageAI")
-    collection = Collection(name=COLLECTION_NAME, schema=schema)
+    return CollectionSchema(fields, description="Base RAG TriageAI")
+
+
+def ensure_collection_exists() -> Collection:
+    """Creates the collection if it doesn't exist.
+    If it exists but is missing the doc_hash field (old schema), recreates it with migration warning."""
+    if utility.has_collection(COLLECTION_NAME):
+        col = Collection(COLLECTION_NAME)
+        field_names = {f.name for f in col.schema.fields}
+        if "doc_hash" not in field_names:
+            print(f"[Milvus] Schema antigo detectado (sem doc_hash) — recriando coleção para indexação incremental.")
+            utility.drop_collection(COLLECTION_NAME)
+            col = Collection(name=COLLECTION_NAME, schema=_make_schema())
+            print(f"[Milvus] Coleção '{COLLECTION_NAME}' recriada com schema atualizado.")
+        else:
+            print(f"[Milvus] Coleção '{COLLECTION_NAME}' já existe — mantendo dados.")
+        return col
+    collection = Collection(name=COLLECTION_NAME, schema=_make_schema())
     print(f"[Milvus] Coleção '{COLLECTION_NAME}' criada.")
     return collection
+
+
+def reset_collection() -> Collection:
+    """Drops and recreates the collection. Use only for manual schema resets."""
+    if utility.has_collection(COLLECTION_NAME):
+        utility.drop_collection(COLLECTION_NAME)
+        print(f"[Milvus] Coleção '{COLLECTION_NAME}' removida.")
+    collection = Collection(name=COLLECTION_NAME, schema=_make_schema())
+    print(f"[Milvus] Coleção '{COLLECTION_NAME}' criada.")
+    return collection
+
+
+def doc_hash(disease: str, texto_rag: str) -> str:
+    return hashlib.sha256(f"{disease}|{texto_rag}".encode()).hexdigest()[:32]
+
+
+def upsert_batch(
+    collection: Collection,
+    diseases: list[str],
+    texts: list[str],
+    embeddings: list[list[float]],
+) -> int:
+    """Inserts only documents not already in the collection (idempotent by doc_hash).
+    Returns the number of new documents inserted."""
+    hashes = [doc_hash(d, t) for d, t in zip(diseases, texts)]
+
+    # Query existing hashes in this batch
+    hash_filter = 'doc_hash in [' + ', '.join(f'"{h}"' for h in hashes) + ']'
+    try:
+        existing = collection.query(
+            expr=hash_filter,
+            output_fields=["doc_hash"],
+            consistency_level="Strong",
+        )
+        existing_hashes = {r["doc_hash"] for r in existing}
+    except Exception:
+        existing_hashes = set()
+
+    new_docs = [
+        (h, d, t, e)
+        for h, d, t, e in zip(hashes, diseases, texts, embeddings)
+        if h not in existing_hashes
+    ]
+
+    if not new_docs:
+        return 0
+
+    new_hashes, new_diseases, new_texts, new_embeddings = zip(*new_docs)
+    collection.insert([list(new_hashes), list(new_diseases), list(new_texts), list(new_embeddings)])
+    return len(new_docs)
 
 
 def insert_batch(
@@ -41,7 +105,9 @@ def insert_batch(
     texts: list[str],
     embeddings: list[list[float]],
 ) -> None:
-    collection.insert([diseases, texts, embeddings])
+    """Legacy insert without deduplication. Kept for compatibility."""
+    hashes = [doc_hash(d, t) for d, t in zip(diseases, texts)]
+    collection.insert([hashes, diseases, texts, embeddings])
 
 
 def create_index_and_load(collection: Collection) -> None:
@@ -50,7 +116,9 @@ def create_index_and_load(collection: Collection) -> None:
         "index_type": "HNSW",
         "params": {"M": 8, "efConstruction": 64},
     }
-    collection.create_index(field_name="embedding", index_params=index_params)
+    existing_indexes = collection.indexes
+    if not any(idx.field_name == "embedding" for idx in existing_indexes):
+        collection.create_index(field_name="embedding", index_params=index_params)
     collection.load()
     print(f"[Milvus] Coleção '{COLLECTION_NAME}' indexada e carregada com sucesso.")
 

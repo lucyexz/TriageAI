@@ -143,6 +143,35 @@
             color: #b0b8c1;
         }
 
+        .model-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .model-row label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            white-space: nowrap;
+        }
+        select#modelSelect {
+            flex: 1;
+            padding: 8px 11px;
+            border: 1.5px solid #d1d5db;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            color: #1a1a1a;
+            background: #fafafa;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        select#modelSelect:focus { border-color: #00843D; }
+
         .btn-row {
             display: flex;
             gap: 10px;
@@ -306,6 +335,15 @@
         <div class="card analysis-card">
             <div class="field-label">Sintomas do Paciente</div>
             <textarea id="symptomsInput" placeholder="Descreva os sintomas..." rows="4"></textarea>
+            <div class="model-row">
+                <label for="modelSelect">Modelo</label>
+                <select id="modelSelect">
+                    <option value="">Padrão (llama3.2)</option>
+                    <option value="llama3.2">llama3.2</option>
+                    <option value="phi3">phi3</option>
+                    <option value="gemma:2b">gemma:2b</option>
+                </select>
+            </div>
             <div class="btn-row">
                 <button class="btn-primary" id="analyzeBtn">Analisar</button>
                 <button class="btn-secondary" id="clearBtn">Limpar</button>
@@ -323,6 +361,7 @@
     <script>
         // API calls go to /query on the same origin (server.py proxies to the backend)
         const symptomsInput = document.getElementById('symptomsInput');
+        const modelSelect   = document.getElementById('modelSelect');
         const outputContent = document.getElementById('outputContent');
         const analyzeBtn  = document.getElementById('analyzeBtn');
         const clearBtn    = document.getElementById('clearBtn');
@@ -353,10 +392,13 @@
             outputContent.innerHTML = '<div class="loading"><div class="spinner"></div>Analisando sintomas...</div>';
 
             try {
+                const selectedModel = modelSelect.value || null;
+                const payload = { symptoms };
+                if (selectedModel) payload.model = selectedModel;
                 const res = await fetch('/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ symptoms })
+                    body: JSON.stringify(payload)
                 });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
