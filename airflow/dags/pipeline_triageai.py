@@ -77,30 +77,35 @@ def processamento_gold():
 
 def atualizacao_milvus():
     from embeddings.generate import get_client, generate_embeddings
-    from embeddings.indexing import connect, reset_collection, insert_batch, create_index_and_load
+    from embeddings.indexing import connect, ensure_collection_exists, upsert_batch, create_index_and_load
 
-    print("Iniciando geração de embeddings e indexação no Milvus...")
+    print("Iniciando geração de embeddings e indexação incremental no Milvus...")
     df_gold = pd.read_csv("s3://gold/textos_rag.csv", storage_options=MINIO_OPTIONS)
 
     connect()
-    collection = reset_collection()
+    collection = ensure_collection_exists()
     ollama_client = get_client()
 
     BATCH_SIZE = 500
     total = len(df_gold)
+    total_inserted = 0
     for i in range(0, total, BATCH_SIZE):
         batch = df_gold.iloc[i : i + BATCH_SIZE]
         embeddings = generate_embeddings(batch["texto"].tolist(), ollama_client)
-        insert_batch(
+        inserted = upsert_batch(
             collection,
             batch["diseases"].tolist(),
             batch["texto"].tolist(),
             embeddings,
         )
-        print(f"[Milvus] Batch {i // BATCH_SIZE + 1}: {min(i + BATCH_SIZE, total)}/{total} registros inseridos")
+        total_inserted += inserted
+        print(f"[Milvus] Batch {i // BATCH_SIZE + 1}: {min(i + BATCH_SIZE, total)}/{total} processados, {inserted} novos inseridos")
 
-    create_index_and_load(collection)
-    print("Indexação vetorial concluída com sucesso!")
+    if total_inserted > 0:
+        create_index_and_load(collection)
+        print(f"Indexação incremental concluída: {total_inserted} novos documentos adicionados.")
+    else:
+        print("Nenhum documento novo — base Milvus já está atualizada.")
 
 # ==========================================
 # Definição da DAG

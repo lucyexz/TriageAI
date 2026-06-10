@@ -6,7 +6,7 @@ x-airflow-common: &airflow-common
   image: apache/airflow:2.9.1
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:admin123@postgres:5432/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin123}@postgres:5432/airflow
     AIRFLOW__CORE__FERNET_KEY: ""
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -52,10 +52,10 @@ services:
     container_name: mlops-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
       POSTGRES_DB: mlops
-      POSTGRES_MULTIPLE_DATABASES: mlflow,airflow   # init script cria múltiplos DBs
+      POSTGRES_MULTIPLE_DATABASES: mlflow,airflow
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -75,8 +75,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     volumes:
       - minio_data:/data
     ports:
@@ -99,7 +99,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        mc alias set local http://minio:9000 minioadmin minioadmin123;
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123};
         mc mb --ignore-existing local/bronze;
         mc mb --ignore-existing local/silver;
         mc mb --ignore-existing local/gold;
@@ -119,14 +119,14 @@ services:
     restart: unless-stopped
     command: >
       mlflow server
-        --backend-store-uri postgresql://admin:admin123@postgres:5432/mlflow
+        --backend-store-uri postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin123}@postgres:5432/mlflow
         --default-artifact-root s3://mlflow-artifacts/
         --host 0.0.0.0
         --port 5000
     environment:
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     ports:
       - "5000:5000"
     depends_on:
@@ -170,8 +170,8 @@ services:
     restart: unless-stopped
     command: minio server /minio_data --console-address ":9011"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     volumes:
       - minio_milvus_data:/minio_data
     ports:
@@ -197,8 +197,8 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio-milvus:9000
-      MINIO_ACCESS_KEY_ID: minioadmin
-      MINIO_SECRET_ACCESS_KEY: minioadmin123
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     volumes:
       - milvus_data:/var/lib/milvus
     ports:
@@ -251,9 +251,13 @@ services:
     entrypoint: >
       /bin/sh -c "
         ollama pull nomic-embed-text &&
-        echo 'Modelo de incorporacao baixado' &&
+        echo 'Embedding model ready' &&
         ollama pull llama3.2 &&
-        echo 'Modelo LLM baixado';
+        echo 'llama3.2 ready' &&
+        ollama pull phi3 &&
+        echo 'phi3 ready' &&
+        ollama pull gemma:2b &&
+        echo 'gemma:2b ready';
       "
     environment:
       OLLAMA_HOST: http://ollama:11434
@@ -305,11 +309,12 @@ services:
       JUPYTER_TOKEN: "mlops2025"
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     volumes:
       - jupyter_data:/home/jovyan/work
       - ./notebooks:/home/jovyan/work/notebooks
+      - ./models:/home/jovyan/work/models
     ports:
       - "8888:8888"
     depends_on:
@@ -343,8 +348,8 @@ services:
     container_name: mlops-grafana
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
@@ -353,6 +358,20 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+    networks:
+      - mlops-net
+
+  # CADVISOR — métricas de containers para Prometheus/Grafana
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: mlops-cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - mlops-net
 
